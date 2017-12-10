@@ -1,21 +1,23 @@
 #include "fs.h"
 #include <iostream>
 #include <fstream>
-#include <vector>
 
 using namespace std;
 
 myFileSystem::myFileSystem(char diskName[16]) {
   // open the file with the above name
   // this file will act as the "disk" for your file system
-  this.disk.open(diskName, ios::in | ios::out);
+  this->disk.open(diskName, ios::in | ios::out);
 }
 
 int myFileSystem::create_file(char name[8], int size) {
   //create a file with this name and this size
 
   // high level pseudo code for creating a new file
-
+  if(size > 8 || size < 1)
+    return -1;
+  if(strlen(name) > 8 || strlen(name) < 1)
+    return -1;
   // Step 1: Check to see if we have sufficient free space on disk by
   //   reading in the free block list. To do this:
   // Move the file pointer to the start of the disk file.
@@ -26,7 +28,7 @@ int myFileSystem::create_file(char name[8], int size) {
   char * buffer = new char [128];
   this->disk.read(buffer, 128);
   int counter = 0;
-  for(int = 0; i < 128; i++){
+  for(int i = 0; i < 128; i++){
     if(buffer[i] == 0){
       counter += 1;
       if(counter >= size){
@@ -34,10 +36,9 @@ int myFileSystem::create_file(char name[8], int size) {
       }
     }
   }
-  if(counter < size){
+  if(counter < size || counter == 0){
     return -1;
   }
-  //delete buffer[];
   // Step 2: we look for a free inode on disk
   // Read in an inode
   // Check the "used" field to see if it is free
@@ -46,14 +47,14 @@ int myFileSystem::create_file(char name[8], int size) {
   // Copy the filename to the "name" field
   // Copy the file size (in units of blocks) to the "size" field
   idxNode found;
-  int positon = -1;
+  int position = -1;
   for(int i = 0; i < 16; i++){
     char * buff = new char[48];
     this->disk.read(buff, 48);
     memcpy(&found, buff, sizeof(found));
-    delete buff[];
+    delete buff;
     if(found.used == 0){
-      positon = 1
+      position = 1;
       break;
     }
   }
@@ -71,14 +72,22 @@ int myFileSystem::create_file(char name[8], int size) {
   // end for
   for(int i = 0; i < size; i++){
     found.blockPointers[i] = buffer[i];
-    buffer
+    buffer[i] = 1;
   }
   // Step 4: Write out the inode and free block list to disk
   // Move the file pointer to the start of the file
   // Write out the 128 byte free block list
   // Move the file pointer to the position on disk where this inode was stored
   // Write out the inode
-  return 0;
+  this->disk.seekp(0, disk.beg);
+  this->disk.write(buffer, 128);
+  this->disk.seekp(48 * position, disk.cur);
+  char * buff = new char[48];
+  memcpy(buff, &found, sizeof(found));
+  this->disk.write(buff, 48);
+  delete buffer;
+  delete buff;
+  return 1;
 } // End Create
 
 int myFileSystem::delete_file(char name[8]){
@@ -91,23 +100,51 @@ int myFileSystem::delete_file(char name[8]){
   // If the inode is in use, check if the "name" field in the
   //   inode matches the file we want to delete. If not, read the next
   //   inode and repeat
-
+  this->disk.seekg(128, disk.beg);
+  idxNode found;
+  int position = -1;
+  for(int i = 0; i < 16; i++){
+    char * buff = new char[48];
+    this->disk.read(buff, 48);
+    memcpy(&found, buff, sizeof(found));
+    if(found.used == 1 && strncmp(found.name, name, 8) == 0){
+      position = i;
+      delete buff;
+      break;
+    }
+    delete buff;
+  }
+  if(position == -1){
+    return -1;
+  }
   // Step 2: free blocks of the file being deleted
   // Read in the 128 byte free block list (move file pointer to start
   //   of the disk and read in 128 bytes)
   // Free each block listed in the blockPointer fields as follows:
   // for(i=0;i< inode.size; i++)
   // freeblockList[ inode.blockPointer[i] ] = 0;
-
+  this->disk.seekg(0, disk.beg);
+  char * buffer = new char[128];
+  this->disk.read(buffer, 128);
+  for (int i = 0; i < found.size; i++){
+    buffer[found.blockPointers[i]] = 0;
+  }
   // Step 3: mark inode as free
   // Set the "used" field to 0.
-
+  found.used = 0;
   // Step 4: Write out the inode and free block list to disk
   // Move the file pointer to the start of the file
   // Write out the 128 byte free block list
   // Move the file pointer to the position on disk where this inode was stored
   // Write out the inode
-  return 0;
+  this->disk.seekp(0, disk.beg);
+  this->disk.write(buffer, 128);
+  this->disk.seekp(48 * position, disk.cur);
+  char * buff = new char[48];
+  memcpy(buff, &found, sizeof(found));
+  this->disk.write(buff, 48);
+  delete buff;
+  return 1;
 } // End Delete
 
 
@@ -121,7 +158,18 @@ int myFileSystem::ls(){
   // If the inode is in-use
   // print the "name" and "size" fields from the inode
   // end for
-    return 0;
+  this->disk.seekg(128, disk.beg);
+  for(int i = 0; i < 16; i++){
+    idxNode found;
+    char * buff = new char[48];
+    this->disk.read(buff, 48);
+    memcpy(&found, buff, sizeof(found));
+    if (found.used == 1){
+      cout << "idxNode: " << found.name << " size: " << found.size << endl;
+    }
+    delete buff;
+  }
+  return 1;
 }; // End ls
 
 int myFileSystem::read(char name[8], int blockNum, char buf[1024]){
@@ -132,17 +180,38 @@ int myFileSystem::read(char name[8], int blockNum, char buf[1024]){
   // Read in an inode
   // If the inode is in use, compare the "name" field with the above file
   // If the file names don't match, repeat
-
+  this->disk.seekg(128, disk.beg);
+  idxNode found;
+  int position = -1;
+  for(int i = 0; i < 16; i++){
+    char * buff = new char[48];
+    this->disk.read(buff, 48);
+    memcpy(&found, buff, sizeof(found));
+    if (found.used == 1 && strncmp(found.name, name, 8) == 0){
+      position = i;
+      delete buff;
+      break;
+    } 
+    delete buff;
+  }
+  if(position = -1){
+    return -1;
+  }
   // Step 2: Read in the specified block
   // Check that blockNum < inode.size, else flag an error
   // Get the disk address of the specified block
   // That is, addr = inode.blockPointer[blockNum]
   // Move the file pointer to the block location (i.e., to byte #
   //   addr*1024 in the file)
-
+  if (blockNum >= found.size){
+    return -1;
+  }
+  int addr = found.blockPointers[blockNum] * block_size;
   // Read in the block => Read in 1024 bytes from this location
   //   into the buffer "buf"
-  return 0;
+  this->disk.seekg(addr, disk.beg);
+  this->disk.read(buf, block_size);
+  return 1;
 } // End read
 
 
@@ -154,18 +223,40 @@ int myFileSystem::write(char name[8], int blockNum, char buf[1024]){
   // Read in a inode
   // If the inode is in use, compare the "name" field with the above file
   // If the file names don't match, repeat
-
+  this->disk.seekg(128, disk.beg);
+  idxNode found;
+  int position = -1;
+  for(int i = 0; i < 16; i++){
+    char * buff = new char[48];
+    this->disk.read(buff, 48);
+    memcpy(&found, buff, sizeof(found));
+    if (found.used == 1 && strncmp(found.name, name, 8) == 0){
+      position = i;
+      delete buff;
+      break;
+    }
+    delete buff;
+  }
+  if(position = -1){
+    return -1;
+  }
   // Step 2: Write to the specified block
   // Check that blockNum < inode.size, else flag an error
   // Get the disk address of the specified block
   // That is, addr = inode.blockPointer[blockNum]
   // Move the file pointer to the block location (i.e., byte # addr*1024)
-
+  if (blockNum >= found.size){
+    return -1;
+  }
+  int addr = found.blockPointers[blockNum] * block_size;
   // Write the block! => Write 1024 bytes from the buffer "buff" to
   //   this location
-  return 0;
-} // end write
+  this->disk.seekp(addr, disk.beg);
+  this->disk.write(buf, block_size);
+  return 1;
+}
 
 int myFileSystem::close_disk(){
-    return 0;
+    this->disk.close();
+    return 1;
 }
