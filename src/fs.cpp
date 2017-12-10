@@ -1,10 +1,14 @@
 #include "fs.h"
+#include <iostream>
+#include <fstream>
+#include <vector>
 
 using namespace std;
 
 myFileSystem::myFileSystem(char diskName[16]) {
   // open the file with the above name
   // this file will act as the "disk" for your file system
+  this.disk.open(diskName, ios::in | ios::out);
 }
 
 int myFileSystem::create_file(char name[8], int size) {
@@ -18,7 +22,22 @@ int myFileSystem::create_file(char name[8], int size) {
   // Read the first 128 bytes (the free/in-use block information)
   // Scan the list to make sure you have sufficient free blocks to
   //   allocate a new file of this size
-
+  this->disk.seekg(0, disk.beg);
+  char * buffer = new char [128];
+  this->disk.read(buffer, 128);
+  int counter = 0;
+  for(int = 0; i < 128; i++){
+    if(buffer[i] == 0){
+      counter += 1;
+      if(counter >= size){
+        break;
+      }
+    }
+  }
+  if(counter < size){
+    return -1;
+  }
+  //delete buffer[];
   // Step 2: we look for a free inode on disk
   // Read in an inode
   // Check the "used" field to see if it is free
@@ -26,14 +45,34 @@ int myFileSystem::create_file(char name[8], int size) {
   // Set the "used" field to 1
   // Copy the filename to the "name" field
   // Copy the file size (in units of blocks) to the "size" field
-
+  idxNode found;
+  int positon = -1;
+  for(int i = 0; i < 16; i++){
+    char * buff = new char[48];
+    this->disk.read(buff, 48);
+    memcpy(&found, buff, sizeof(found));
+    delete buff[];
+    if(found.used == 0){
+      positon = 1
+      break;
+    }
+  }
+  if(position == -1){
+    return -1;
+  }
+  found.used = 1;
+  strncpy(found.name, name, 8);
+  found.size = size;
   // Step 3: Allocate data blocks to the file
   // for(i=0;i<size;i++)
   // Scan the block list that you read in Step 1 for a free block
   // Once you find a free block, mark it as in-use (Set it to 1)
   // Set the blockPointer[i] field in the inode to this block number.
   // end for
-
+  for(int i = 0; i < size; i++){
+    found.blockPointers[i] = buffer[i];
+    buffer
+  }
   // Step 4: Write out the inode and free block list to disk
   // Move the file pointer to the start of the file
   // Write out the 128 byte free block list
