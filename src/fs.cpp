@@ -25,7 +25,7 @@ int myFileSystem::create_file(char name[8], int size) {
   // Scan the list to make sure you have sufficient free blocks to
   //   allocate a new file of this size
   this->disk.seekg(0, disk.beg);
-  char * buffer = new char [128];
+  char * buffer = new char[128];
   this->disk.read(buffer, 128);
   int counter = 0;
   for(int i = 0; i < 128; i++){
@@ -54,7 +54,7 @@ int myFileSystem::create_file(char name[8], int size) {
     memcpy(&found, buff, sizeof(found));
     delete buff;
     if(found.used == 0){
-      position = 1;
+      position = i;
       break;
     }
   }
